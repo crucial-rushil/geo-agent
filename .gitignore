@@ -1,0 +1,27 @@
+# Environment variables / secrets
+.env
+api/.env
+
+# Dependencies
+node_modules/
+my-app/node_modules/
+
+# Build outputs
+dist/
+build/
+my-app/dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
