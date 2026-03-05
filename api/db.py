@@ -6,7 +6,8 @@ import json
 import uuid
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "geo_agent.db")
+DB_DIR = os.environ.get("DB_DIR", os.path.dirname(__file__))
+DB_PATH = os.path.join(DB_DIR, "geo_agent.db")
 
 
 def get_db():

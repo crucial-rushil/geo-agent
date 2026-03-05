@@ -1,0 +1,12 @@
+node_modules/
+my-app/node_modules/
+dist/
+my-app/dist/
+__pycache__/
+*.pyc
+.env
+api/.env
+my-app/.env
+*.db
+.git/
+.vscode/

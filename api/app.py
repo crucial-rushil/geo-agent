@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, send_from_directory
 from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
@@ -16,9 +16,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from db import init_db, upsert_user, get_user_by_id, save_analysis, get_user_analyses, get_analysis_by_id, delete_analysis
 from auth import verify_google_token, create_jwt, require_auth
 
-app = Flask(__name__)
+# ---------- Production static-file serving ----------
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+HAS_STATIC = os.path.isdir(STATIC_DIR)
+
+app = Flask(__name__, static_folder=STATIC_DIR if HAS_STATIC else None, static_url_path="")
 app.secret_key = os.environ.get("JWT_SECRET", "change-me-in-production")
-CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+
+# Dynamic CORS: allow localhost in dev, plus any FRONTEND_URL in prod
+cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+if os.environ.get("FRONTEND_URL"):
+    cors_origins.append(os.environ["FRONTEND_URL"])
+CORS(app, supports_credentials=True, origins=cors_origins)
 
 # Initialize database on startup
 init_db()
@@ -1538,6 +1547,25 @@ IMPORTANT: Return ONLY the raw JSON object. Do not wrap it in markdown code fenc
 
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+# ---------- Health-check endpoint ----------
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+# ---------- Serve React SPA for non-API routes ----------
+if HAS_STATIC:
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_spa(path):
+        # If the file exists in the static build, serve it
+        full_path = os.path.join(STATIC_DIR, path)
+        if path and os.path.isfile(full_path):
+            return send_from_directory(STATIC_DIR, path)
+        # Otherwise serve index.html (SPA client-side routing)
+        return send_from_directory(STATIC_DIR, "index.html")
 
 
 if __name__ == "__main__":
