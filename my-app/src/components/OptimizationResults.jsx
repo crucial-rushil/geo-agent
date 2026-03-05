@@ -1,4 +1,5 @@
-import { Loader2, TrendingUp, AlertCircle, Info, CheckCircle2, Globe, Link2, Shield, Zap, SearchX } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, TrendingUp, AlertCircle, Info, CheckCircle2, Globe, Link2, Shield, Zap, SearchX, ChevronDown, ChevronUp } from 'lucide-react';
 import { ScoreCard } from './ScoreCard';
 import { SuggestionsList } from './SuggestionsList';
 import { KeywordCloud } from './KeywordCloud';
@@ -42,6 +43,7 @@ function Card({ title, icon: Icon, children, className = '' }) {
 const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 function SEOAuditResults({ results }) {
+  const [seoOpen, setSeoOpen] = useState(false);
   const { score, summary, visibleIssues, linkAnalysis, robotsImplications, crawlEfficiency, dataGaps, suggestions, auditData, aiVisibility } = results;
 
   const sortedIssues = visibleIssues
@@ -49,9 +51,43 @@ function SEOAuditResults({ results }) {
     : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-0">
 
-      {/* Row 1: Score + summary + quick stats */}
+      {/* AI Visibility Section — panel manages its own collapse */}
+      {aiVisibility && (
+        <AIVisibilityPanel aiVisibility={aiVisibility} />
+      )}
+
+      {/* SEO Audit Section */}
+      <div className="space-y-6 mt-8 pt-8 border-t-2 border-cyan-200">
+        <button
+          onClick={() => setSeoOpen(!seoOpen)}
+          className="w-full flex items-center justify-between group cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-cyan-100 rounded-lg p-2">
+              <Globe className="size-5 text-cyan-600" />
+            </div>
+            <div className="text-left">
+              <h2 className="text-lg font-bold text-slate-900">SEO Audit</h2>
+              <p className="text-sm text-slate-500">Technical SEO analysis and recommendations</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {score !== undefined && (
+              <span className={`text-sm font-bold ${
+                score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-600'
+              }`}>{score}/100</span>
+            )}
+            {seoOpen ? (
+              <ChevronUp className="size-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+            ) : (
+              <ChevronDown className="size-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+            )}
+          </div>
+        </button>
+
+      {seoOpen && <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="SEO Score" icon={Globe} className="lg:col-span-1">
           <ScoreCard score={score} />
@@ -174,9 +210,8 @@ function SEOAuditResults({ results }) {
       {suggestions && suggestions.length > 0 && (
         <SuggestionsList suggestions={suggestions} />
       )}
-
-      {/* AI Visibility Analysis */}
-      {aiVisibility && <AIVisibilityPanel aiVisibility={aiVisibility} />}
+      </div>}
+      </div>
     </div>
   );
 }

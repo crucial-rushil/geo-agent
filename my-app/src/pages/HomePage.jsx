@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom'
-import { Sparkles, Zap, Target, TrendingUp, BarChart3, Brain, ArrowRight, CheckCircle2, Globe, Search } from 'lucide-react';
+import { Sparkles, Zap, Target, TrendingUp, BarChart3, Brain, ArrowRight, CheckCircle2, Globe, Search, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import logoImage from '../assets/geode-logo.png'
 
 export default function HomePage() {
+  const { isAuthenticated, user, logout, isLoading } = useAuth();
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
@@ -19,12 +22,29 @@ export default function HomePage() {
               <a href="#how-it-works" className="text-slate-600 hover:text-slate-900 transition-colors">
                 How It Works
               </a>
-              <Link 
-                to="/optimizer"
-                className="px-6 py-2 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
-              >
-                Get Started
-              </Link>
+              {!isLoading && isAuthenticated ? (
+                <div className="flex items-center gap-3">
+                  {user?.picture && (
+                    <img src={user.picture} alt="" className="size-8 rounded-full border border-slate-200" referrerPolicy="no-referrer" />
+                  )}
+                  <Link 
+                    to="/optimizer"
+                    className="px-6 py-2 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                  >
+                    Dashboard
+                  </Link>
+                  <button onClick={logout} className="text-slate-400 hover:text-slate-700 transition-colors" title="Sign out">
+                    <LogOut className="size-4" />
+                  </button>
+                </div>
+              ) : (
+                <Link 
+                  to="/login"
+                  className="px-6 py-2 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+                >
+                  Sign In
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -70,7 +90,7 @@ export default function HomePage() {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link 
-                to="/optimizer"
+                to={isAuthenticated ? "/optimizer" : "/login"}
                 className="px-8 py-4 bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-500 text-white rounded-lg font-semibold text-lg hover:shadow-xl transition-all flex items-center gap-2 group"
               >
                 Start Optimizing
@@ -413,7 +433,7 @@ export default function HomePage() {
             Join the content creators and businesses optimizing for the future of search.
           </p>
           <Link 
-            to="/optimizer"
+            to={isAuthenticated ? "/optimizer" : "/login"}
             className="inline-flex items-center gap-2 px-8 py-4 bg-white text-cyan-600 rounded-lg font-semibold text-lg hover:shadow-2xl transition-all group"
           >
             Start Optimizing for Free

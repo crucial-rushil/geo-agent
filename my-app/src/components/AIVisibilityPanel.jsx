@@ -156,6 +156,8 @@ function AIKnowledgeCard({ botKey, mention }) {
 }
 
 export function AIVisibilityPanel({ aiVisibility }) {
+  const [isOpen, setIsOpen] = useState(true);
+
   if (!aiVisibility) return null;
 
   const {
@@ -170,22 +172,38 @@ export function AIVisibilityPanel({ aiVisibility }) {
 
   return (
     <div className="space-y-6 mt-8 pt-8 border-t-2 border-purple-200">
-      {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <div className="bg-purple-100 rounded-lg p-2">
-          <Bot className="size-5 text-purple-600" />
+      {/* Collapsible Header */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between group cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="bg-purple-100 rounded-lg p-2">
+            <Bot className="size-5 text-purple-600" />
+          </div>
+          <div className="text-left">
+            <h2 className="text-lg font-bold text-slate-900">AI Visibility Analysis</h2>
+            <p className="text-sm text-slate-500">How visible is your site to AI chatbots?</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">AI Visibility Analysis</h2>
-          <p className="text-sm text-slate-500">
-            How visible is your site to AI chatbots like Claude, ChatGPT, Gemini &amp; Perplexity?
-          </p>
+        <div className="flex items-center gap-3">
+          {score !== undefined && (
+            <span className={`text-sm font-bold ${
+              score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-600'
+            }`}>{score}/100</span>
+          )}
+          {isOpen ? (
+            <ChevronUp className="size-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+          ) : (
+            <ChevronDown className="size-5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+          )}
         </div>
-      </div>
+      </button>
 
+      {!isOpen ? null : <div className="space-y-6">
       {/* Score + Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col items-center justify-center">
+        <div className="bg-slate-50 rounded-xl border border-slate-100 p-6 flex flex-col items-center justify-center">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">
             AI Visibility Score
           </p>
@@ -417,6 +435,7 @@ export function AIVisibilityPanel({ aiVisibility }) {
           </div>
         </div>
       )}
+      </div>}
     </div>
   );
 }

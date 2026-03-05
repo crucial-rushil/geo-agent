@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
@@ -13,8 +13,15 @@ import os
 import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from db import init_db, upsert_user, get_user_by_id, save_analysis, get_user_analyses, get_analysis_by_id, delete_analysis
+from auth import verify_google_token, create_jwt, require_auth
+
 app = Flask(__name__)
-CORS(app)
+app.secret_key = os.environ.get("JWT_SECRET", "change-me-in-production")
+CORS(app, supports_credentials=True, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+
+# Initialize database on startup
+init_db()
 
 client = anthropic.Anthropic()
 
@@ -32,7 +39,101 @@ def fetch_url(url, timeout=10):
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Auth endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/auth/google", methods=["POST"])
+def google_login():
+    """Exchange a Google OAuth credential for a Geode JWT."""
+    data = request.get_json()
+    credential = data.get("credential")
+    if not credential:
+        return jsonify({"error": "Google credential is required"}), 400
+
+    try:
+        google_user = verify_google_token(credential)
+    except Exception as e:
+        return jsonify({"error": f"Invalid Google token: {e}"}), 401
+
+    user = upsert_user(
+        google_id=google_user["sub"],
+        email=google_user["email"],
+        name=google_user["name"],
+        picture_url=google_user["picture"],
+    )
+
+    token = create_jwt(user["id"], user["email"])
+
+    return jsonify({
+        "success": True,
+        "token": token,
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "email": user["email"],
+            "picture": user["picture_url"],
+        },
+    })
+
+
+@app.route("/api/auth/me", methods=["GET"])
+@require_auth
+def auth_me():
+    """Return the current user's profile."""
+    user = get_user_by_id(g.user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({
+        "user": {
+            "id": user["id"],
+            "name": user["name"],
+            "email": user["email"],
+            "picture": user["picture_url"],
+        }
+    })
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# History endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/history", methods=["GET"])
+@require_auth
+def list_history():
+    """Return the authenticated user's past analyses."""
+    limit = request.args.get("limit", 50, type=int)
+    offset = request.args.get("offset", 0, type=int)
+    analyses = get_user_analyses(g.user_id, limit=limit, offset=offset)
+    return jsonify({"analyses": analyses})
+
+
+@app.route("/api/history/<analysis_id>", methods=["GET"])
+@require_auth
+def get_history_item(analysis_id):
+    """Return full results for a specific past analysis."""
+    analysis = get_analysis_by_id(analysis_id, g.user_id)
+    if not analysis:
+        return jsonify({"error": "Analysis not found"}), 404
+    return jsonify({"analysis": analysis})
+
+
+@app.route("/api/history/<analysis_id>", methods=["DELETE"])
+@require_auth
+def delete_history_item(analysis_id):
+    """Delete a specific past analysis."""
+    deleted = delete_analysis(analysis_id, g.user_id)
+    if not deleted:
+        return jsonify({"error": "Analysis not found"}), 404
+    return jsonify({"success": True})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Analysis endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
 @app.route("/api/analyze", methods=["POST"])
+@require_auth
 def analyze():
     data = request.get_json()
     url = data.get("url")
@@ -223,14 +324,21 @@ IMPORTANT: Return ONLY the raw JSON object. Do not wrap it in markdown code fenc
             print(f"AI visibility analysis error: {viz_err}")
             ai_visibility = None
 
-        return jsonify(
-            {
-                "success": True,
-                "auditData": audit_data,
-                "analysis": analysis,
-                "aiVisibility": ai_visibility,
-            }
-        )
+        result_payload = {
+            "success": True,
+            "auditData": audit_data,
+            "analysis": analysis,
+            "aiVisibility": ai_visibility,
+        }
+
+        # Save to history
+        try:
+            score = analysis.get("score") if analysis else None
+            save_analysis(g.user_id, "url", url, result_payload, score=score)
+        except Exception as save_err:
+            print(f"Failed to save analysis: {save_err}")
+
+        return jsonify(result_payload)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1150,6 +1258,7 @@ IMPORTANT: Return ONLY the raw JSON object. Do not wrap it in markdown code fenc
 
 
 @app.route("/api/analyze-repo", methods=["POST"])
+@require_auth
 def analyze_repo():
     data = request.get_json()
     repo_url = data.get("repoUrl")
@@ -1397,26 +1506,32 @@ IMPORTANT: Return ONLY the raw JSON object. Do not wrap it in markdown code fenc
             framework, tree_paths, token, prefix
         )
 
-        return jsonify(
-            {
-                "success": True,
-                "repoInfo": {
-                    "owner": owner,
-                    "repo": repo,
-                    "homepage": homepage,
-                    "description": description,
-                    "framework": framework,
-                },
-                "findings": {
-                    "hasRobots": has_robots,
-                    "hasSitemap": has_sitemap,
-                    "existingRobots": existing_robots,
-                    "existingSitemap": existing_sitemap,
-                },
-                "generated": generated,
-                "seoDiffs": seo_diffs,
-            }
-        )
+        result_payload = {
+            "success": True,
+            "repoInfo": {
+                "owner": owner,
+                "repo": repo,
+                "homepage": homepage,
+                "description": description,
+                "framework": framework,
+            },
+            "findings": {
+                "hasRobots": has_robots,
+                "hasSitemap": has_sitemap,
+                "existingRobots": existing_robots,
+                "existingSitemap": existing_sitemap,
+            },
+            "generated": generated,
+            "seoDiffs": seo_diffs,
+        }
+
+        # Save to history
+        try:
+            save_analysis(g.user_id, "github", repo_url, result_payload)
+        except Exception as save_err:
+            print(f"Failed to save repo analysis: {save_err}")
+
+        return jsonify(result_payload)
 
     except Exception as e:
         import traceback
