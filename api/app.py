@@ -20,7 +20,7 @@ from auth import verify_google_token, create_jwt, require_auth
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 HAS_STATIC = os.path.isdir(STATIC_DIR)
 
-app = Flask(__name__, static_folder=STATIC_DIR if HAS_STATIC else None, static_url_path="")
+app = Flask(__name__, static_folder=None)
 app.secret_key = os.environ.get("JWT_SECRET", "change-me-in-production")
 
 # Dynamic CORS: allow localhost in dev, plus any FRONTEND_URL in prod
