@@ -1567,21 +1567,67 @@ def admin_stats():
     try:
         user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         analysis_count = conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
+
+        # Analyses by mode
+        mode_breakdown = [
+            dict(row) for row in conn.execute(
+                "SELECT mode, COUNT(*) as count FROM analyses GROUP BY mode"
+            ).fetchall()
+        ]
+
+        # Daily analyses (last 30 days)
+        daily_analyses = [
+            dict(row) for row in conn.execute(
+                "SELECT DATE(created_at) as date, COUNT(*) as count "
+                "FROM analyses WHERE created_at >= datetime('now', '-30 days') "
+                "GROUP BY DATE(created_at) ORDER BY date"
+            ).fetchall()
+        ]
+
+        # Daily signups (last 30 days)
+        daily_signups = [
+            dict(row) for row in conn.execute(
+                "SELECT DATE(created_at) as date, COUNT(*) as count "
+                "FROM users WHERE created_at >= datetime('now', '-30 days') "
+                "GROUP BY DATE(created_at) ORDER BY date"
+            ).fetchall()
+        ]
+
+        # Average score
+        avg_score_row = conn.execute(
+            "SELECT AVG(score) as avg_score FROM analyses WHERE score IS NOT NULL"
+        ).fetchone()
+        avg_score = round(avg_score_row["avg_score"], 1) if avg_score_row["avg_score"] else 0
+
+        # Top users by analysis count
+        top_users = [
+            dict(row) for row in conn.execute(
+                "SELECT u.name, u.email, u.picture_url, COUNT(a.id) as analysis_count, "
+                "u.created_at FROM users u LEFT JOIN analyses a ON u.id = a.user_id "
+                "GROUP BY u.id ORDER BY analysis_count DESC LIMIT 10"
+            ).fetchall()
+        ]
+
         recent_users = [
             dict(row) for row in conn.execute(
-                "SELECT name, email, created_at FROM users ORDER BY created_at DESC LIMIT 20"
+                "SELECT name, email, picture_url, created_at FROM users ORDER BY created_at DESC LIMIT 20"
             ).fetchall()
         ]
         recent_analyses = [
             dict(row) for row in conn.execute(
-                "SELECT u.name, u.email, a.mode, a.input, a.created_at "
+                "SELECT u.name, u.email, a.mode, a.input, a.score, a.created_at "
                 "FROM analyses a JOIN users u ON a.user_id = u.id "
-                "ORDER BY a.created_at DESC LIMIT 20"
+                "ORDER BY a.created_at DESC LIMIT 30"
             ).fetchall()
         ]
         return jsonify({
             "total_users": user_count,
             "total_analyses": analysis_count,
+            "avg_score": avg_score,
+            "mode_breakdown": mode_breakdown,
+            "daily_analyses": daily_analyses,
+            "daily_signups": daily_signups,
+            "top_users": top_users,
             "recent_users": recent_users,
             "recent_analyses": recent_analyses,
         })

@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage';
 import OptimizerPage from './pages/OptimizerPage';
 import LoginPage from './pages/LoginPage';
 import HistoryPage from './pages/HistoryPage';
+import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/optimizer" element={
           <ProtectedRoute>
             <OptimizerPage />
