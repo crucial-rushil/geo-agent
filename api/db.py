@@ -12,10 +12,11 @@ DB_PATH = os.path.join(DB_DIR, "geo_agent.db")
 
 def get_db():
     """Get a connection with row_factory set to sqlite3.Row."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

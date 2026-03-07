@@ -29,4 +29,4 @@ COPY --from=frontend-build /app/my-app/dist ./static
 
 EXPOSE 5001
 
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5001", "--workers", "2", "--threads", "4", "--timeout", "120"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:5001", "--workers", "1", "--threads", "8", "--timeout", "120"]
