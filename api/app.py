@@ -1555,6 +1555,40 @@ def health():
     return jsonify({"status": "ok"})
 
 
+# ---------- Admin stats endpoint ----------
+@app.route("/api/admin/stats")
+def admin_stats():
+    secret = request.args.get("key")
+    if secret != os.environ.get("ADMIN_SECRET", "geode-admin-2026"):
+        return jsonify({"error": "unauthorized"}), 401
+
+    from db import get_db
+    conn = get_db()
+    try:
+        user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        analysis_count = conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
+        recent_users = [
+            dict(row) for row in conn.execute(
+                "SELECT name, email, created_at FROM users ORDER BY created_at DESC LIMIT 20"
+            ).fetchall()
+        ]
+        recent_analyses = [
+            dict(row) for row in conn.execute(
+                "SELECT u.name, u.email, a.mode, a.input, a.created_at "
+                "FROM analyses a JOIN users u ON a.user_id = u.id "
+                "ORDER BY a.created_at DESC LIMIT 20"
+            ).fetchall()
+        ]
+        return jsonify({
+            "total_users": user_count,
+            "total_analyses": analysis_count,
+            "recent_users": recent_users,
+            "recent_analyses": recent_analyses,
+        })
+    finally:
+        conn.close()
+
+
 # ---------- Serve React SPA for non-API routes ----------
 if HAS_STATIC:
     @app.route("/", defaults={"path": ""})
