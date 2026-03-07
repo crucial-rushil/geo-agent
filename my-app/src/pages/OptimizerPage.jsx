@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, RotateCcw, Clock, LogOut } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Clock, LogOut, BarChart3 } from 'lucide-react';
 import { ContentInput } from '../components/ContentInput';
 import { OptimizationResults } from '../components/OptimizationResults';
 import { useAuth } from '../context/AuthContext';
@@ -133,6 +133,9 @@ export default function OptimizerPage() {
             )}
 
             <div className="flex items-center gap-3">
+              <Link to="/dashboard" className="text-slate-500 hover:text-slate-900 transition-colors" title="My Dashboard">
+                <BarChart3 className="size-5" />
+              </Link>
               <Link to="/history" className="text-slate-500 hover:text-slate-900 transition-colors" title="History">
                 <Clock className="size-5" />
               </Link>
@@ -180,6 +183,9 @@ export default function OptimizerPage() {
             <p className="text-sm text-slate-500">AI Search Optimizer</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/dashboard" className="text-slate-500 hover:text-slate-900 transition-colors" title="My Dashboard">
+              <BarChart3 className="size-5" />
+            </Link>
             <Link to="/history" className="text-slate-500 hover:text-slate-900 transition-colors" title="History">
               <Clock className="size-5" />
             </Link>

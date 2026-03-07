@@ -137,6 +137,142 @@ def delete_history_item(analysis_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/my-dashboard", methods=["GET"])
+@require_auth
+def my_dashboard():
+    """Return dashboard metrics for the authenticated user's analyses."""
+    from db import get_db
+    conn = get_db()
+    try:
+        user_id = g.user_id
+
+        # Total counts
+        total = conn.execute(
+            "SELECT COUNT(*) FROM analyses WHERE user_id = ?", (user_id,)
+        ).fetchone()[0]
+
+        url_count = conn.execute(
+            "SELECT COUNT(*) FROM analyses WHERE user_id = ? AND mode = 'url'", (user_id,)
+        ).fetchone()[0]
+
+        github_count = conn.execute(
+            "SELECT COUNT(*) FROM analyses WHERE user_id = ? AND mode = 'github'", (user_id,)
+        ).fetchone()[0]
+
+        # Average SEO score
+        avg_row = conn.execute(
+            "SELECT AVG(score) as avg FROM analyses WHERE user_id = ? AND score IS NOT NULL",
+            (user_id,),
+        ).fetchone()
+        avg_seo = round(avg_row["avg"], 1) if avg_row["avg"] else None
+
+        # Get all URL analyses with full results to extract AI visibility + scores over time
+        rows = conn.execute(
+            "SELECT input, score, results, created_at FROM analyses "
+            "WHERE user_id = ? ORDER BY created_at ASC",
+            (user_id,),
+        ).fetchall()
+
+        # Build per-site time series and extract AI visibility scores
+        sites = {}  # domain -> [{date, seo_score, ai_score}]
+        timeline = []  # [{date, seo_score, ai_score, site}]
+        ai_scores_all = []
+
+        for row in rows:
+            try:
+                results = json.loads(row["results"])
+            except Exception:
+                continue
+
+            inp = row["input"]
+            created = row["created_at"]
+            seo_score = row["score"]
+
+            # Extract AI visibility score from results blob
+            ai_score = None
+            ai_vis = results.get("aiVisibility")
+            if ai_vis and isinstance(ai_vis, dict):
+                ai_score = ai_vis.get("score") or ai_vis.get("overall_score") or ai_vis.get("overallScore")
+                if ai_score is not None:
+                    try:
+                        ai_score = float(ai_score)
+                    except (ValueError, TypeError):
+                        ai_score = None
+                if ai_score is not None:
+                    ai_scores_all.append(ai_score)
+
+            # Determine domain/site key
+            try:
+                from urllib.parse import urlparse as _urlparse
+                parsed = _urlparse(inp)
+                domain = parsed.netloc or inp
+            except Exception:
+                domain = inp
+
+            entry = {
+                "date": created[:10] if created else None,
+                "datetime": created,
+                "seo_score": seo_score,
+                "ai_score": ai_score,
+                "site": domain,
+                "input": inp,
+            }
+            timeline.append(entry)
+
+            if domain not in sites:
+                sites[domain] = []
+            sites[domain].append(entry)
+
+        # Average AI score
+        avg_ai = round(sum(ai_scores_all) / len(ai_scores_all), 1) if ai_scores_all else None
+
+        # Best and worst SEO scores
+        seo_scores = [e["seo_score"] for e in timeline if e["seo_score"] is not None]
+        best_seo = max(seo_scores) if seo_scores else None
+        worst_seo = min(seo_scores) if seo_scores else None
+
+        # Per-site summaries (latest score, best score, trend)
+        site_summaries = []
+        for domain, entries in sites.items():
+            scored = [e for e in entries if e["seo_score"] is not None]
+            ai_scored = [e for e in entries if e["ai_score"] is not None]
+            latest_seo = scored[-1]["seo_score"] if scored else None
+            latest_ai = ai_scored[-1]["ai_score"] if ai_scored else None
+            best_site_seo = max(e["seo_score"] for e in scored) if scored else None
+            best_site_ai = max(e["ai_score"] for e in ai_scored) if ai_scored else None
+            first_seo = scored[0]["seo_score"] if scored else None
+            seo_delta = (latest_seo - first_seo) if (latest_seo is not None and first_seo is not None and len(scored) > 1) else None
+            first_ai = ai_scored[0]["ai_score"] if ai_scored else None
+            ai_delta = (latest_ai - first_ai) if (latest_ai is not None and first_ai is not None and len(ai_scored) > 1) else None
+            site_summaries.append({
+                "domain": domain,
+                "analysis_count": len(entries),
+                "latest_seo": latest_seo,
+                "latest_ai": latest_ai,
+                "best_seo": best_site_seo,
+                "best_ai": best_site_ai,
+                "seo_delta": seo_delta,
+                "ai_delta": ai_delta,
+                "last_analyzed": entries[-1]["datetime"],
+            })
+
+        site_summaries.sort(key=lambda s: s["analysis_count"], reverse=True)
+
+        return jsonify({
+            "total_analyses": total,
+            "url_count": url_count,
+            "github_count": github_count,
+            "avg_seo": avg_seo,
+            "avg_ai": avg_ai,
+            "best_seo": best_seo,
+            "worst_seo": worst_seo,
+            "timeline": timeline,
+            "sites": site_summaries,
+        })
+    finally:
+        conn.close()
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Analysis endpoints
 # ──────────────────────────────────────────────────────────────────────────────
